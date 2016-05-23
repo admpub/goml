@@ -15,14 +15,14 @@ Each package (mentioned below) includes individual README's to learn more about 
 ## Installation
 
 ```bash
-go get github.com/cdipaolo/goml/base
+go get github.com/admpub/goml/base
 
 # This could be any other model package if you want
 #
 # Also, the base package is imported already
 # by many of the packages so you might not even
 # need to `go get` the package explicitly
-go get github.com/cdipaolo/goml/perceptron
+go get github.com/admpub/goml/perceptron
 ```
 
 ## Documentation

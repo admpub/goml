@@ -58,7 +58,7 @@ import (
 	"math"
 	"os"
 
-	"github.com/cdipaolo/goml/base"
+	"github.com/admpub/goml/base"
 )
 
 // LeastSquares implements a standard linear regression model

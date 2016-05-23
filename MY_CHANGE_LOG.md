@@ -1,0 +1,1 @@
+github.com/cdipaolo/goml/ => github.com/admpub/goml/

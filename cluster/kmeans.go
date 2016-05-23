@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cdipaolo/goml/base"
+	"github.com/admpub/goml/base"
 )
 
 // diff returns the square magnitude of the

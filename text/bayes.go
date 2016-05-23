@@ -82,7 +82,7 @@ import (
 
 	"golang.org/x/text/transform"
 
-	"github.com/cdipaolo/goml/base"
+	"github.com/admpub/goml/base"
 )
 
 /*
