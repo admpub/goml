@@ -19,15 +19,42 @@ package text
 
 import (
 	"fmt"
+	"log"
 	"math"
+	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/admpub/goml/base"
 	"golang.org/x/text/transform"
+
+	. "github.com/coscms/xorm"
+	//"github.com/coscms/xorm/core"
+	_ "github.com/go-sql-driver/mysql"
 )
+
+func NewNaiveBayesDB(engine string, dsn string, model *NaiveBayes) *NaiveBayesDB {
+	m := &NaiveBayesDB{
+		NaiveBayes: model,
+		lock:       &sync.RWMutex{},
+	}
+	var err error
+	m.db, err = NewEngine(engine, dsn)
+	if err != nil {
+		log.Println("The database connection failed:", err)
+	}
+	err = m.db.Ping()
+	if err != nil {
+		log.Println("The database ping failed:", err)
+	}
+	m.db.OpenLog()
+	return m
+}
 
 type NaiveBayesDB struct {
 	*NaiveBayes
+	db   *Engine
+	lock *sync.RWMutex
 }
 
 func (b *NaiveBayesDB) classCount() int {
@@ -35,11 +62,78 @@ func (b *NaiveBayesDB) classCount() int {
 }
 
 func (b *NaiveBayesDB) getWords(words ...string) map[string]Word {
-	return b.Words
+	l := len(words)
+	p := strings.Repeat(`?,`, l)
+	p = strings.TrimSuffix(p, `,`)
+	params := make([]interface{}, l)
+	for i, v := range words {
+		params[i] = v
+	}
+	r := b.db.RawQueryKvs(`word`, "SELECT * FROM `word` WHERE `word` IN ("+p+")", params...)
+	wds := map[string]Word{}
+	for word, value := range r {
+		seen, _ := strconv.ParseUint(value["seen"], 10, 64)
+		docSeen, _ := strconv.ParseUint(value["doc_seen"], 10, 64)
+		rc := b.db.RawQueryKvs(`cid`, "SELECT * FROM `count_by_word` WHERE `wid`=?", value["id"])
+		ct := make([]uint64, b.classCount())
+		for cid, val := range rc {
+			i, _ := strconv.Atoi(cid)
+			c, _ := strconv.ParseUint(val["count"], 10, 64)
+			if i > 0 {
+				ct[i] = c
+			}
+		}
+		wds[word] = Word{
+			Seen:     seen,
+			DocsSeen: docSeen,
+			Count:    ct,
+		}
+	}
+	return wds
+	//return b.Words
 }
 
-func (b *NaiveBayesDB) setWord(word string, w Word, update bool) {
-	b.Words[word] = w
+func (b *NaiveBayesDB) setCountByWord(wid int64, word string, w Word) error {
+	if wid == 0 {
+		id := b.db.GetOne("SELECT `id` FROM `word` WHERE `word`=?", word)
+		if id != `` {
+			wid, _ = strconv.ParseInt(id, 10, 64)
+		}
+	}
+	if wid > 0 {
+		set := map[string]interface{}{
+			"wid": wid,
+		}
+		for cid, count := range w.Count {
+			if cid > 0 {
+				set["cid"] = cid
+				set["count"] = count
+				affected := b.db.RawReplace(`count_by_word`, set)
+				if affected == 0 {
+					panic(`修改表“count_by_word”失败。`)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (b *NaiveBayesDB) setWord(word string, w Word, update bool) int64 {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	set := map[string]interface{}{}
+	set["seen"] = w.Seen
+	set["doc_seen"] = w.DocsSeen
+	if update {
+		affected := b.db.RawUpdate(`word`, set, "`word`=?", word)
+		b.setCountByWord(0, word, w)
+		return affected
+	}
+	set["word"] = word
+	lastInsertID := b.db.RawInsert(`word`, set)
+	b.setCountByWord(lastInsertID, word, w)
+	return lastInsertID
+	//b.Words[word] = w
 }
 
 // Predict takes in a document, predicts the
@@ -197,16 +291,32 @@ func (b *NaiveBayesDB) OnlineLearn(errors chan<- error) {
 				w.Count[C]++
 				w.Seen++
 
-				b.setWord(word, w, ok)
+				affected := b.setWord(word, w, ok)
+				if affected == 0 {
+					fmt.Fprint(b.Output, "内容没有修改.\n")
+				}
 
 				seenCount[word] = 1
 			}
 
 			// add to DocsSeen
+			params := make([]interface{}, 0)
 			for term := range seenCount {
-				tmp := b.Words[term]
-				tmp.DocsSeen++
-				b.setWord(term, tmp, true)
+				params = append(params, term)
+				/*
+					tmp := b.Words[term]
+					tmp.DocsSeen++
+					b.setWord(term, tmp, true)
+				*/
+			}
+			length := len(params)
+			if length > 0 {
+				in := strings.Repeat(`?,`, length)
+				in = strings.TrimSuffix(in, `,`)
+				affected := b.db.RawExec("UPDATE `word` SET `doc_seen`=`doc_seen`+1 WHERE `word` IN ("+in+")", false, params...)
+				if affected == 0 {
+					panic(`更新word表中的doc_seen字段失败`)
+				}
 			}
 		} else {
 			fmt.Fprintf(b.Output, "Training Completed.\n%v\n\n", b)
@@ -216,10 +326,64 @@ func (b *NaiveBayesDB) OnlineLearn(errors chan<- error) {
 	}
 }
 
-func (b *NaiveBayesDB) PersistToDB(path string) error {
+func (b *NaiveBayesDB) Save(config string) error {
+	set := map[string]interface{}{}
+	for cid, count := range b.Count {
+		pro := b.Probabilities[cid]
+		set["cid"] = cid
+		set["count"] = count
+		set["probabilities"] = pro
+		affected := b.db.RawReplace(`count_by_cate`, set)
+		if affected == 0 {
+			panic(`修改表“count_by_cate”失败。`)
+		}
+	}
+	set = map[string]interface{}{}
+	set["doc_count"] = b.DocumentCount
+	set["dict_count"] = b.DictCount
+	row := b.db.GetRow("SELECT * FROM `count`")
+	if row != nil {
+		affected := b.db.RawUpdate(`count`, set, "id=?", row.GetByName(`id`))
+		if affected == 0 {
+			panic(`修改表“count”失败。`)
+		}
+	} else {
+		lastInsertID := b.db.RawInsert(`count`, set)
+		if lastInsertID == 0 {
+			panic(`修改表“count”失败。`)
+		}
+	}
 	return nil
 }
 
-func (b *NaiveBayesDB) RestoreFromDB(path string) error {
+func (b *NaiveBayesDB) Restore(config string) error {
+	c := b.db.GetOne("SELECT MAX(`cid`) FROM `count_by_cate`")
+	if c == `` {
+		return nil
+	}
+
+	maxId, err := strconv.Atoi(c)
+	if err != nil {
+		return err
+	}
+	total := maxId + 1
+	r := b.db.GetRows("SELECT * FROM `count_by_cate`")
+	b.Count = make([]uint64, total)
+	b.Probabilities = make([]float64, total)
+	for _, row := range r {
+		cid, _ := strconv.ParseInt(row.GetByName(`cid`), 10, 64)
+		cnt, _ := strconv.ParseUint(row.GetByName(`count`), 10, 64)
+		pro, _ := strconv.ParseFloat(row.GetByName(`probabilities`), 64)
+		b.Count[cid] = cnt
+		b.Probabilities[cid] = pro
+	}
+
+	row := b.db.GetRow("SELECT * FROM `count`")
+	b.DocumentCount, _ = strconv.ParseUint(row.GetByName(`doc_count`), 10, 64)
+	b.DictCount, _ = strconv.ParseUint(row.GetByName(`dict_count`), 10, 64)
 	return nil
+}
+
+func (b *NaiveBayesDB) GetNaiveBayes() *NaiveBayes {
+	return b.NaiveBayes
 }
