@@ -47,7 +47,8 @@ func NewNaiveBayesDB(engine string, dsn string, model *NaiveBayes) *NaiveBayesDB
 	if err != nil {
 		log.Println("The database ping failed:", err)
 	}
-	m.db.OpenLog()
+	//m.db.OpenLog()
+	m.db.CloseLog()
 	return m
 }
 
