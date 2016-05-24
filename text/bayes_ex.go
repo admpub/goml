@@ -36,10 +36,12 @@ type NaiveBayesExer interface {
 	UpdateSanitize(func(rune) bool)
 	String() string
 	GetNaiveBayes() *NaiveBayes
+	SetDebug(bool)
 }
 
 type NaiveBayesEx struct {
 	*NaiveBayes
+	debug bool
 }
 
 func (b *NaiveBayesEx) classCount() int {
@@ -211,6 +213,14 @@ func (b *NaiveBayesEx) OnlineLearn(errors chan<- error) {
 
 				b.setWord(word, w, ok)
 
+				if b.debug {
+					if ok {
+						fmt.Fprintf(b.Output, "训练旧词“%v”.\n", word)
+					} else {
+						fmt.Fprintf(b.Output, "训练新词“%v”.\n", word)
+					}
+				}
+
 				seenCount[word] = 1
 			}
 
@@ -238,4 +248,8 @@ func (b *NaiveBayesEx) Restore(config string) error {
 
 func (b *NaiveBayesEx) GetNaiveBayes() *NaiveBayes {
 	return b.NaiveBayes
+}
+
+func (b *NaiveBayesEx) SetDebug(on bool) {
+	b.debug = on
 }

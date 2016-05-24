@@ -54,8 +54,9 @@ func NewNaiveBayesDB(engine string, dsn string, model *NaiveBayes) *NaiveBayesDB
 
 type NaiveBayesDB struct {
 	*NaiveBayes
-	db   *Engine
-	lock *sync.RWMutex
+	db    *Engine
+	lock  *sync.RWMutex
+	debug bool
 }
 
 func (b *NaiveBayesDB) classCount() int {
@@ -293,8 +294,12 @@ func (b *NaiveBayesDB) OnlineLearn(errors chan<- error) {
 				w.Seen++
 
 				affected := b.setWord(word, w, ok)
-				if affected == 0 {
-					fmt.Fprint(b.Output, "内容没有修改.\n")
+				if b.debug {
+					if affected == 0 {
+						fmt.Fprintf(b.Output, "词语“%v”内容没有修改（已经训练过）.\n", word)
+					} else {
+						fmt.Fprintf(b.Output, "训练新词“%v”.\n", word)
+					}
 				}
 
 				seenCount[word] = 1
@@ -387,4 +392,8 @@ func (b *NaiveBayesDB) Restore(config string) error {
 
 func (b *NaiveBayesDB) GetNaiveBayes() *NaiveBayes {
 	return b.NaiveBayes
+}
+
+func (b *NaiveBayesDB) SetDebug(on bool) {
+	b.debug = on
 }
