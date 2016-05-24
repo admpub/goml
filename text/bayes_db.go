@@ -33,22 +33,45 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-func NewNaiveBayesDB(engine string, dsn string, model *NaiveBayes) *NaiveBayesDB {
+func NewXORM(engine, dsn string) *Engine {
+	db, err := NewEngine(engine, dsn)
+	if err != nil {
+		log.Println("The database connection failed:", err)
+	}
+	err = db.Ping()
+	if err != nil {
+		log.Println("The database ping failed:", err)
+	}
+	//db.OpenLog()
+	db.CloseLog()
+	return db
+}
+
+func NewNaiveBayesDB(param interface{}, model *NaiveBayes) *NaiveBayesDB {
 	m := &NaiveBayesDB{
 		NaiveBayes: model,
 		lock:       &sync.RWMutex{},
 	}
-	var err error
-	m.db, err = NewEngine(engine, dsn)
-	if err != nil {
-		log.Println("The database connection failed:", err)
+	if ng, ok := param.(*Engine); ok {
+		m.db = ng
+	} else if pr, ok := param.([]string); ok {
+		var (
+			engine = `mysql`
+			dsn    = ``
+		)
+		switch len(pr) {
+		case 2:
+			engine = pr[0]
+			dsn = pr[1]
+		case 1:
+			dsn = pr[0]
+		default:
+			panic(`参数不正确`)
+		}
+		m.db = NewXORM(engine, dsn)
+	} else {
+		panic(`参数不正确`)
 	}
-	err = m.db.Ping()
-	if err != nil {
-		log.Println("The database ping failed:", err)
-	}
-	//m.db.OpenLog()
-	m.db.CloseLog()
 	return m
 }
 
