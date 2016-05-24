@@ -102,11 +102,15 @@ func (b *NaiveBayesDB) getWords(words ...string) map[string]Word {
 		rc := b.db.RawQueryKvs(`cid`, "SELECT * FROM `count_by_word` WHERE `wid`=?", value["id"])
 		ct := make([]uint64, b.classCount())
 		for cid, val := range rc {
-			i, _ := strconv.Atoi(cid)
-			c, _ := strconv.ParseUint(val["count"], 10, 64)
-			if i > 0 {
-				ct[i] = c
+			i, err := strconv.Atoi(cid)
+			if err != nil {
+				continue
 			}
+			c, err := strconv.ParseUint(val["count"], 10, 64)
+			if err != nil {
+				continue
+			}
+			ct[i] = c
 		}
 		wds[word] = Word{
 			Seen:     seen,
