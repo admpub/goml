@@ -404,16 +404,16 @@ func (b *NaiveBayesDB) Restore(config string) error {
 	b.Count = make([]uint64, total)
 	b.Probabilities = make([]float64, total)
 	for _, row := range r {
-		cid, _ := strconv.ParseInt(row.GetByName(`cid`), 10, 64)
-		cnt, _ := strconv.ParseUint(row.GetByName(`count`), 10, 64)
-		pro, _ := strconv.ParseFloat(row.GetByName(`probabilities`), 64)
-		b.Count[cid] = cnt
+		cid := row.GetInt64ByName(`cid`)
+		cnt := row.GetInt64ByName(`count`)
+		pro := row.GetFloat64ByName(`probabilities`)
+		b.Count[cid] = uint64(cnt)
 		b.Probabilities[cid] = pro
 	}
 
 	row := b.db.GetRow("SELECT * FROM `count`")
-	b.DocumentCount, _ = strconv.ParseUint(row.GetByName(`doc_count`), 10, 64)
-	b.DictCount, _ = strconv.ParseUint(row.GetByName(`dict_count`), 10, 64)
+	b.DocumentCount = uint64(row.GetInt64ByName(`doc_count`))
+	b.DictCount = uint64(row.GetInt64ByName(`dict_count`))
 	return nil
 }
 
