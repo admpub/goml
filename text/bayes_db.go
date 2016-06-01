@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/admpub/goml/base"
 	"golang.org/x/text/transform"
@@ -374,6 +375,7 @@ func (b *NaiveBayesDB) Save(config string) error {
 	set = map[string]interface{}{}
 	set["doc_count"] = b.DocumentCount
 	set["dict_count"] = b.DictCount
+	set["last_training"] = time.Now().Unix()
 	row := b.db.GetRow("SELECT * FROM `count`")
 	if row != nil {
 		affected := b.db.RawUpdate(`count`, set, "id=?", row.GetByName(`id`))
