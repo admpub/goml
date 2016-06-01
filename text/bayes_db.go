@@ -414,8 +414,10 @@ func (b *NaiveBayesDB) Restore(config string) error {
 	}
 
 	row := b.db.GetRow("SELECT * FROM `count`")
-	b.DocumentCount = uint64(row.GetInt64ByName(`doc_count`))
-	b.DictCount = uint64(row.GetInt64ByName(`dict_count`))
+	if row != nil {
+		b.DocumentCount = uint64(row.GetInt64ByName(`doc_count`))
+		b.DictCount = uint64(row.GetInt64ByName(`dict_count`))
+	}
 	return nil
 }
 
