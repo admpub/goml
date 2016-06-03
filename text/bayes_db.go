@@ -131,17 +131,31 @@ func (b *NaiveBayesDB) setCountByWord(wid int64, word string, w Word) error {
 		}
 	}
 	if wid > 0 {
-		set := map[string]interface{}{
-			"wid": wid,
-		}
+		bi := []map[string]interface{}{}
 		for cid, count := range w.Count {
-			if cid > 0 {
-				set["cid"] = cid
-				set["count"] = count
-				affected := b.db.RawReplace(`count_by_word`, set)
+			cnt := b.db.GetOne("SELECT `count` FROM `count_by_word` WHERE `wid`=? AND `cid`=?", wid, cid)
+			if cnt == `` {
+				bi = append(bi, map[string]interface{}{
+					"wid":   wid,
+					"cid":   cid,
+					"count": count,
+				})
+			} else if cnt != fmt.Sprintf(`%v`, count) {
+				affected := b.db.RawUpdate(`count_by_word`, map[string]interface{}{"count": count}, "`wid`=? AND `cid`=?", wid, cid)
 				if affected == 0 {
 					panic(`修改表“count_by_word”失败。`)
 				}
+			}
+		}
+		if len(bi) > 0 {
+			rows, err := b.db.RawBatchInsert(`count_by_word`, bi)
+			if err != nil {
+				panic(err)
+			}
+			if affected, err := rows.RowsAffected(); err != nil {
+				panic(err)
+			} else if affected == 0 {
+				panic(`向表“count_by_word”插入数据失败。`)
 			}
 		}
 	}
