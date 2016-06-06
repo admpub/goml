@@ -270,6 +270,53 @@ func (b *NaiveBayesDB) Probability(sentence string) (uint8, float64) {
 	return uint8(maxI), sums[maxI] / denom
 }
 
+func (b *NaiveBayesDB) TopProbabilities(sentence string, topN int) []*Probability {
+	sums := make([]float64, b.classCount())
+	for i := range sums {
+		sums[i] = 1
+	}
+
+	sentence, _, _ = transform.String(b.sanitize, sentence)
+	w := strings.Split(strings.ToLower(sentence), " ")
+	words := b.getWords(w...)
+	for _, word := range w {
+		wd, ok := words[word]
+		if !ok {
+			continue
+		}
+
+		for i := range sums {
+			sums[i] *= float64(wd.Count[i]+1) / float64(wd.Seen+b.DictCount)
+		}
+	}
+
+	for i := range sums {
+		sums[i] *= b.Probabilities[i]
+	}
+
+	var denom float64
+	endIdx := len(sums) - 1
+	for i := range sums {
+		for j := endIdx; j > i; j-- {
+			if sums[j] > sums[j-1] {
+				sums[j], sums[j-1] = sums[j-1], sums[j]
+			}
+		}
+		denom += sums[i]
+	}
+
+	probabilities := make([]*Probability, 0)
+	for i := 0; i < topN; i++ {
+		if i <= endIdx {
+			probabilities = append(probabilities, &Probability{
+				Class:       uint8(i),
+				Probability: sums[i] / denom,
+			})
+		}
+	}
+	return probabilities
+}
+
 // OnlineLearn lets the NaiveBayesDB model learn
 // from the datastream, waiting for new data to
 // come into the stream from a separate goroutine

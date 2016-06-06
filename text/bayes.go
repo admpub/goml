@@ -85,6 +85,11 @@ import (
 	"github.com/admpub/goml/base"
 )
 
+type Probability struct {
+	Class       uint8   `json:"class"`
+	Probability float64 `json:"probability"`
+}
+
 /*
 NaiveBayes is a general classification
 model that calculates the probability
@@ -287,6 +292,52 @@ func (b *NaiveBayes) Probability(sentence string) (uint8, float64) {
 	}
 
 	return uint8(maxI), sums[maxI] / denom
+}
+
+func (b *NaiveBayes) TopProbabilities(sentence string, topN int) []*Probability {
+	sums := make([]float64, len(b.Count))
+	for i := range sums {
+		sums[i] = 1
+	}
+
+	sentence, _, _ = transform.String(b.sanitize, sentence)
+	w := strings.Split(strings.ToLower(sentence), " ")
+	for _, word := range w {
+		if _, ok := b.Words[word]; !ok {
+			continue
+		}
+
+		for i := range sums {
+			sums[i] *= float64(b.Words[word].Count[i]+1) / float64(b.Words[word].Seen+b.DictCount)
+		}
+	}
+
+	for i := range sums {
+		sums[i] *= b.Probabilities[i]
+	}
+
+	var denom float64
+	endIdx := len(sums) - 1
+	for i := range sums {
+		for j := endIdx; j > i; j-- {
+			if sums[j] > sums[j-1] {
+				sums[j], sums[j-1] = sums[j-1], sums[j]
+			}
+		}
+
+		denom += sums[i]
+	}
+
+	probabilities := make([]*Probability, 0)
+	for i := 0; i < topN; i++ {
+		if i <= endIdx {
+			probabilities = append(probabilities, &Probability{
+				Class:       uint8(i),
+				Probability: sums[i] / denom,
+			})
+		}
+	}
+	return probabilities
 }
 
 // OnlineLearn lets the NaiveBayes model learn
