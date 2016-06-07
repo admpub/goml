@@ -267,6 +267,7 @@ func (b *NaiveBayes) Probability(sentence string) (uint8, float64) {
 
 	sentence, _, _ = transform.String(b.sanitize, sentence)
 	w := strings.Split(strings.ToLower(sentence), " ")
+	has := false
 	for _, word := range w {
 		if _, ok := b.Words[word]; !ok {
 			continue
@@ -275,14 +276,19 @@ func (b *NaiveBayes) Probability(sentence string) (uint8, float64) {
 		for i := range sums {
 			sums[i] *= float64(b.Words[word].Count[i]+1) / float64(b.Words[word].Seen+b.DictCount)
 		}
+		has = true
+	}
+	var denom float64
+	var maxI int
+
+	if !has {
+		return uint8(maxI), sums[maxI] / denom
 	}
 
 	for i := range sums {
 		sums[i] *= b.Probabilities[i]
 	}
 
-	var denom float64
-	var maxI int
 	for i := range sums {
 		if sums[i] > sums[maxI] {
 			maxI = i
@@ -300,8 +306,11 @@ func (b *NaiveBayes) TopProbabilities(sentence string, topN int) []*Probability 
 		sums[i] = 1
 	}
 
+	probabilities := make([]*Probability, 0)
+
 	sentence, _, _ = transform.String(b.sanitize, sentence)
 	w := strings.Split(strings.ToLower(sentence), " ")
+	has := false
 	for _, word := range w {
 		if _, ok := b.Words[word]; !ok {
 			continue
@@ -310,6 +319,10 @@ func (b *NaiveBayes) TopProbabilities(sentence string, topN int) []*Probability 
 		for i := range sums {
 			sums[i] *= float64(b.Words[word].Count[i]+1) / float64(b.Words[word].Seen+b.DictCount)
 		}
+		has = true
+	}
+	if !has {
+		return probabilities
 	}
 
 	for i := range sums {
@@ -317,25 +330,27 @@ func (b *NaiveBayes) TopProbabilities(sentence string, topN int) []*Probability 
 	}
 
 	var denom float64
-	endIdx := len(sums) - 1
-	for i := range sums {
-		for j := endIdx; j > i; j-- {
-			if sums[j] > sums[j-1] {
-				sums[j], sums[j-1] = sums[j-1], sums[j]
+	for n := 0; n < topN; n++ {
+		var maxI int
+		for i := range sums {
+			if sums[i] < 0 {
+				continue
+			}
+			if sums[i] > sums[maxI] {
+				maxI = i
+			}
+			if n == 0 {
+				denom += sums[i]
 			}
 		}
-
-		denom += sums[i]
-	}
-
-	probabilities := make([]*Probability, 0)
-	for i := 0; i < topN; i++ {
-		if i <= endIdx {
-			probabilities = append(probabilities, &Probability{
-				Class:       uint8(i),
-				Probability: sums[i] / denom,
-			})
+		prob := &Probability{
+			Class:       uint8(maxI),
+			Probability: sums[maxI] / denom,
 		}
+		if !math.IsNaN(prob.Probability) {
+			probabilities = append(probabilities, prob)
+		}
+		sums[maxI] = -9
 	}
 	return probabilities
 }
