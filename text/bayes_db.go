@@ -326,7 +326,7 @@ func (b *NaiveBayesDB) TopProbabilities(sentence string, topN int) []*Probabilit
 		if !math.IsNaN(prob.Probability) {
 			probabilities = append(probabilities, prob)
 		}
-		sums[maxI] = -9
+		sums[maxI] = -9.999
 	}
 	return probabilities
 }
