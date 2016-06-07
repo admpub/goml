@@ -132,16 +132,16 @@ func (b *NaiveBayesDB) setCountByWord(wid int64, word string, w Word) error {
 	}
 	if wid > 0 {
 		bi := []map[string]interface{}{}
+		kvs := b.db.RawQueryKvs(`cid`, "SELECT * FROM `count_by_word` WHERE `wid`=?", wid)
 		for cid, count := range w.Count {
-			cnt := b.db.GetOne("SELECT `count` FROM `count_by_word` WHERE `wid`=? AND `cid`=?", wid, cid)
-			if cnt == `` {
+			if row, ok := kvs[fmt.Sprintf(`%v`, cid)]; !ok {
 				bi = append(bi, map[string]interface{}{
 					"wid":   wid,
 					"cid":   cid,
 					"count": count,
 				})
-			} else if cnt != fmt.Sprintf(`%v`, count) {
-				affected := b.db.RawUpdate(`count_by_word`, map[string]interface{}{"count": count}, "`wid`=? AND `cid`=?", wid, cid)
+			} else if row["count"] != fmt.Sprintf(`%v`, count) {
+				affected := b.db.RawUpdate(`count_by_word`, map[string]interface{}{"count": count}, "`id`=?", row["id"])
 				if affected == 0 {
 					panic(`修改表“count_by_word”失败。`)
 				}
@@ -477,13 +477,13 @@ func (b *NaiveBayesDB) Restore(config string) error {
 		return err
 	}
 	total := maxId + 1
-	r := b.db.GetRows("SELECT * FROM `count_by_cate`")
+	r := b.db.QueryRaw("SELECT * FROM `count_by_cate`")
 	b.Count = make([]uint64, total)
 	b.Probabilities = make([]float64, total)
 	for _, row := range r {
-		cid := row.GetInt64ByName(`cid`)
-		cnt := row.GetInt64ByName(`count`)
-		pro := row.GetFloat64ByName(`probabilities`)
+		cid := row["cid"].(int64)
+		cnt := row["count"].(int64)
+		pro, _ := strconv.ParseFloat(string(row[`probabilities`].([]uint8)), 64)
 		b.Count[cid] = uint64(cnt)
 		b.Probabilities[cid] = pro
 	}
