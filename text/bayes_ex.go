@@ -19,6 +19,7 @@ package text
 
 import (
 	"github.com/admpub/goml/base"
+	"golang.org/x/text/transform"
 )
 
 type NaiveBayesExer interface {
@@ -33,6 +34,9 @@ type NaiveBayesExer interface {
 	String() string
 	GetNaiveBayes() *NaiveBayes
 	SetDebug(bool)
+	GetWords(...string) map[string]Word
+	Sanitize() transform.Transformer
+	GetDocumentCount() uint64
 }
 
 type NaiveBayesEx struct {

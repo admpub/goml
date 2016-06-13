@@ -208,6 +208,24 @@ func NewNaiveBayes(stream <-chan base.TextDatapoint, classes uint8, sanitize fun
 	}
 }
 
+func (b *NaiveBayes) GetWords(words ...string) map[string]Word {
+	wds := map[string]Word{}
+	for _, word := range words {
+		if wd, ok := b.Words[word]; ok {
+			wds[word] = wd
+		}
+	}
+	return wds
+}
+
+func (b *NaiveBayes) GetDocumentCount() uint64 {
+	return b.DocumentCount
+}
+
+func (b *NaiveBayes) Sanitize() transform.Transformer {
+	return b.sanitize
+}
+
 // Predict takes in a document, predicts the
 // class of the document based on the training
 // data passed so far, and returns the class

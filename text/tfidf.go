@@ -35,7 +35,15 @@ functions, giving you a term that is larger
 when the word is more important, and less when
 the word is less important
 */
-type TFIDF NaiveBayes
+func NewTFIDF(b NaiveBayesExer) *TFIDF {
+	return &TFIDF{
+		NaiveBayesExer: b,
+	}
+}
+
+type TFIDF struct {
+	NaiveBayesExer
+}
 
 // Frequency holds word frequency information
 // so you don't have to hold a map[string]float64
@@ -80,10 +88,10 @@ func (f Frequencies) Swap(i, j int) {
 // Look at the TFIDF docs to see more about how
 // this is calculated
 func (t *TFIDF) TFIDF(word string, sentence string) float64 {
-	sentence, _, _ = transform.String(t.sanitize, sentence)
+	sentence, _, _ = transform.String(t.Sanitize(), sentence)
 	document := strings.Split(strings.ToLower(sentence), " ")
-
-	return t.TermFrequency(word, document) * t.InverseDocumentFrequency(word)
+	words := t.GetWords(word)
+	return t.TermFrequency(word, document) * t.InverseDocumentFrequency(word, words)
 }
 
 // MostImportantWords runs TFIDF on a
@@ -95,12 +103,12 @@ func (t *TFIDF) TFIDF(word string, sentence string) float64 {
 // The returned keyword slice is sorted
 // by importance
 func (t *TFIDF) MostImportantWords(sentence string, n int) Frequencies {
-	sentence, _, _ = transform.String(t.sanitize, sentence)
+	sentence, _, _ = transform.String(t.Sanitize(), sentence)
 	document := strings.Split(strings.ToLower(sentence), " ")
-
+	words := t.GetWords(document...)
 	freq := TermFrequencies(document)
 	for i := range freq {
-		freq[i].TFIDF = freq[i].Frequency * t.InverseDocumentFrequency(freq[i].Word)
+		freq[i].TFIDF = freq[i].Frequency * t.InverseDocumentFrequency(freq[i].Word, words)
 		freq[i].Frequency = float64(0.0)
 	}
 
@@ -172,6 +180,12 @@ func TermFrequencies(document []string) Frequencies {
 //
 // Look at the TFIDF docs to see more about how
 // this is calculated
-func (t *TFIDF) InverseDocumentFrequency(word string) float64 {
-	return math.Log(float64(t.DocumentCount)) - math.Log(float64(t.Words[word].DocsSeen)+1)
+func (t *TFIDF) InverseDocumentFrequency(word string, words ...map[string]Word) float64 {
+	cWords := map[string]Word{}
+	if len(words) > 0 {
+		cWords = words[0]
+	} else {
+		cWords = t.GetWords(word)
+	}
+	return math.Log(float64(t.GetDocumentCount())) - math.Log(float64(cWords[word].DocsSeen)+1)
 }

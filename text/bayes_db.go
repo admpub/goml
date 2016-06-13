@@ -87,7 +87,7 @@ func (b *NaiveBayesDB) classCount() int {
 	return len(b.Count)
 }
 
-func (b *NaiveBayesDB) getWords(words ...string) map[string]Word {
+func (b *NaiveBayesDB) GetWords(words ...string) map[string]Word {
 	l := len(words)
 	p := strings.Repeat(`?,`, l)
 	p = strings.TrimSuffix(p, `,`)
@@ -97,6 +97,7 @@ func (b *NaiveBayesDB) getWords(words ...string) map[string]Word {
 	}
 	r := b.db.RawQueryKvs(`word`, "SELECT * FROM `word` WHERE `word` IN ("+p+")", params...)
 	wds := map[string]Word{}
+
 	for word, value := range r {
 		seen, _ := strconv.ParseUint(value["seen"], 10, 64)
 		docSeen, _ := strconv.ParseUint(value["doc_seen"], 10, 64)
@@ -189,7 +190,7 @@ func (b *NaiveBayesDB) Predict(sentence string) uint8 {
 
 	sentence, _, _ = transform.String(b.sanitize, sentence)
 	w := strings.Split(strings.ToLower(sentence), " ")
-	words := b.getWords(w...)
+	words := b.GetWords(w...)
 	for _, word := range w {
 		wd, ok := words[word]
 		if !ok {
@@ -241,7 +242,7 @@ func (b *NaiveBayesDB) Probability(sentence string) (uint8, float64) {
 
 	sentence, _, _ = transform.String(b.sanitize, sentence)
 	w := strings.Split(strings.ToLower(sentence), " ")
-	words := b.getWords(w...)
+	words := b.GetWords(w...)
 	has := false
 	for _, word := range w {
 		wd, ok := words[word]
@@ -284,7 +285,7 @@ func (b *NaiveBayesDB) TopProbabilities(sentence string, topN int) []*Probabilit
 
 	sentence, _, _ = transform.String(b.sanitize, sentence)
 	w := strings.Split(strings.ToLower(sentence), " ")
-	words := b.getWords(w...)
+	words := b.GetWords(w...)
 	has := false
 	for _, word := range w {
 		wd, ok := words[word]
@@ -376,7 +377,7 @@ func (b *NaiveBayesDB) OnlineLearn(errors chan<- error) {
 			// store words seen in document (to add to DocsSeen)
 			seenCount := make(map[string]int)
 
-			wordList := b.getWords(words...)
+			wordList := b.GetWords(words...)
 			// update probabilities for words
 			for _, word := range words {
 				if len(word) < 3 {
