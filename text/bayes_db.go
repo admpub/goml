@@ -363,7 +363,9 @@ func (b *NaiveBayesDB) OnlineLearn(errors chan<- error) {
 			C := int(point.Y)
 
 			if C > len(b.Count)-1 {
-				errors <- fmt.Errorf("ERROR: given document class is greater than the number of classes in the model!\n")
+				err := fmt.Errorf("ERROR: given document class is greater than the number of classes in the model! %v>%v\n", C, len(b.Count)-1)
+				fmt.Fprint(b.Output, err)
+				errors <- err
 				continue
 			}
 
@@ -468,7 +470,7 @@ func (b *NaiveBayesDB) Save(config string) error {
 }
 
 func (b *NaiveBayesDB) Restore(config string) error {
-	c := b.db.GetOne("SELECT MAX(`cid`) FROM `count_by_cate`")
+	c := b.db.GetOne("SELECT MAX(`index`) FROM `cate_index`")
 	if c == `` {
 		return nil
 	}
