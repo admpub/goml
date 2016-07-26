@@ -45,6 +45,7 @@ func NewXORM(engine, dsn string) *Engine {
 	}
 	//db.OpenLog()
 	db.CloseLog()
+	db.OpenLog("base")
 	return db
 }
 
