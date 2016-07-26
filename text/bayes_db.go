@@ -176,7 +176,13 @@ func (b *NaiveBayesDB) setWord(word string, w Word, update bool) int64 {
 		return affected
 	}
 	set["word"] = word
-	lastInsertID := b.db.RawInsert(`word`, set)
+	var lastInsertID int64
+	id := b.db.GetOne("SELECT `id` FROM `word` WHERE `word`=?", word)
+	if len(id) == 0 {
+		lastInsertID = b.db.RawInsert(`word`, set)
+	} else {
+		lastInsertID, _ = strconv.ParseInt(id, 10, 64)
+	}
 	b.setCountByWord(lastInsertID, word, w)
 	return lastInsertID
 	//b.Words[word] = w
